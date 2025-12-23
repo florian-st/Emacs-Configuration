@@ -490,6 +490,26 @@ Prot's theme:
   (modus-themes-load-theme 'modus-vivendi))  
 #+end_src
 
+* Highlight todo keywords
+#+begin_src emacs-lisp
+  (use-package hl-todo
+    :straight t
+    :demand t
+    :config
+    (setq hl-todo-highlight-punctuation ":"
+  	hl-todo-keyword-faces
+  	`(("TODO"       font-lock-warning-face)
+            ("FIXME"      error bold)
+            ("HACK"       font-lock-constant-face bold)
+            ("REVIEW"     font-lock-keyword-face bold)
+            ("NOTE"       success bold)
+            ("DEPRECATED" font-lock-doc-face bold)))
+    (add-hook 'prog-mode-hook 'hl-todo-mode)
+    (add-hook 'LaTeX-mode-hook 'hl-todo-mode)
+    (add-hook 'latex-mode-hook 'hl-todo-mode)
+    )
+#+end_src
+
 * Completing-read enhancements
 How to order matches:
 #+begin_src emacs-lisp
