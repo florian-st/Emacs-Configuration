@@ -261,7 +261,7 @@ Other window in reverse:
 #+begin_src emacs-lisp :tangle no
   ("a" fst/key-udefined)
   ("b" switch-to-buffer)
-  ("c" fst/key-udefined)
+  ;;("c" fst/key-udefined)
   ("d" fst/kill-region)
   ("e" er/expand-region)
   ("f" fst/key-udefined)
@@ -746,9 +746,8 @@ Combine with consult:
     ;; search only for text files in denote dir
     (setq consult-notes-denote-files-function (lambda () (denote-directory-files nil t t))))
 #+end_src
-* R (ESS)
-** Helper Function: Restarting R
-Brute-force restart of the inferior ess process:
+* R
+** Helper function: Restart R
 #+name: fst/ess-restart-r :tangle no
 #+begin_src emacs-lisp
   (defun fst/ess-restart-r ()
@@ -846,6 +845,19 @@ Brute-force restart of the inferior ess process:
          map)))
 #+end_src
 
+** Local Map
+Local keymap for ess-r-mode:
+#+name: local-map-ess-r
+#+begin_src emacs-lisp :noweb no
+  (with-eval-after-load 'ess-r-mode
+    (ryo-modal-major-mode-keys
+     'ess-r-mode
+     ("c b" ess-eval-buffer)
+     ("c x" fst/ess-restart-r)
+     ("c l" ess-eval-region-or-line-and-step)
+     )
+    )
+#+end_src
 ** ESS Package Setup
 #+begin_src emacs-lisp
   (use-package ess
@@ -868,16 +880,7 @@ Brute-force restart of the inferior ess process:
     (setq ess-r-program "R")
     (setq inferior-ess-r-program "R")
 
-    (define-key ess-r-mode-map (kbd "C-c C-r") #'ess-eval-region)
-    (define-key ess-r-mode-map (kbd "C-c C-b") #'ess-eval-buffer)
-    (define-key ess-r-mode-map (kbd "C-c C-l") #'ess-eval-line-and-step)
-    (define-key ess-r-mode-map (kbd "C-c C-p") #'ess-eval-paragraph-and-step)
-    (define-key ess-r-mode-map (kbd "C-c C-x") #'cst/ess-restart-r)
-
-    (define-key ess-r-mode-map ";" #'ess-insert-assign)              
-    (define-key inferior-ess-r-mode-map ";" #'ess-insert-assign)              
-    (define-key ess-r-mode-map (kbd "C-;") (lambda () (interactive) (cst/cycle-assign '("%>% " "%<>% ")))) 
-    (define-key inferior-ess-r-mode-map (kbd "C-;") (lambda () (interactive) (cst/cycle-assign '("%>% " "%<>% "))))
+    <<local-map-ess-r>>
 
     (add-hook 'ess-r-mode-hook
               (lambda ()
@@ -921,3 +924,4 @@ Personal bookkeeping:
     (setq ledger-post-amount-alignment-column  52)
     (setq ledger-post-auto-adjust-amounts t))
 #+end_src
+

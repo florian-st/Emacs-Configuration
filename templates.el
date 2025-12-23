@@ -64,3 +64,15 @@ org-mode
     isbn      = {},
   }
 #+end_src")
+(zkpaper "* Reference
+#+begin_src bibtex
+  @article{" p ",
+    author    = {},
+    title     = {},
+    journal   = {},
+    year      = {},
+    volume    = {},
+    number    = {},
+    pages     = {},
+  }
+#+end_src")
