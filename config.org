@@ -359,7 +359,9 @@ Defining the map:
      ("g" beginning-of-buffer :name "Jump to beginning of buffer")
      ("G" end-of-buffer :name "Jump to end of buffer")
      ("d" dired-jump :name "Jump to Parrent Directory")
-     ))
+     ("m" consult-mark :name "Jump to Mark")
+     ("l" consult-goto-line :name "Jump to Line")
+      ))
   )
 #+end_src
 
@@ -557,6 +559,8 @@ Consult:
 
     (ryo-modal-keys
      ("/" consult-line :exit nil)
+     ("?" consult-ripgrep)
+     ("F" project-find-file)
      ("b" consult-buffer)
      )
 
@@ -854,4 +858,23 @@ Brute-force restart of the inferior ess process:
 Bring back julia setup
 #+begin_src emacs-lisp
   
+#+end_src
+* Ledger
+Personal bookkeeping:
+#+begin_src emacs-lisp
+  (use-package ledger-mode
+    :straight t
+    :mode "\\.ldg\\'"
+    :interpreter "ledger"
+    :init
+    (setenv "LEDGER_FILE" (expand-file-name (concat org-directory "/comptes.ledger")))
+    (setq ledger-mode-should-check-version nil
+          ledger-report-links-in-register nil
+          ledger-binary-path "ledger")
+
+    (setq ledger-use-iso-dates t)
+    (setq ledger-highlight-xact-under-point t)
+    (setq ledger-post-account-alignment-column 2)
+    (setq ledger-post-amount-alignment-column  52)
+    (setq ledger-post-auto-adjust-amounts t))
 #+end_src
