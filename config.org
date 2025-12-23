@@ -1,0 +1,857 @@
+#+title: Emacs Configuration
+#+property: header-args:emacs-lisp :results none :tangle build/init.el :noweb yes
+#+STARTUP: overview
+ 
+* Bootstrap straight.el
+Disable package.el:
+#+begin_src emacs-lisp :tangle build/early-init.el
+  (setq package-enable-at-startup nil)
+#+end_src
+
+Bootstrap straight.el:
+#+begin_src emacs-lisp
+  (defvar bootstrap-version)
+  (let ((bootstrap-file
+         (expand-file-name "straight/repos/straight.el/bootstrap.el" user-emacs-directory))
+        (bootstrap-version 6))
+    (unless (file-exists-p bootstrap-file)
+      (with-current-buffer
+          (url-retrieve-synchronously
+           "https://raw.githubusercontent.com/radian-software/straight.el/develop/install.el"
+           'silent 'inhibit-cookies)
+        (goto-char (point-max))
+        (eval-print-last-sexp)))
+    (load bootstrap-file nil 'nomessage))
+#+end_src
+
+* Writing into custom file
+Emacs should never touch init.el
+#+begin_src emacs-lisp
+(setq custom-file (locate-user-emacs-file "custom.el"))
+(load custom-file 'noerror)
+#+end_src
+** Global Variables
+Knwo which OS we are on and so on:
+#+begin_src emacs-lisp
+  (defconst ismacbook (string-equal (system-name) "Florians-MacBook-Pro.local"))
+  (defconst ismac (string-equal system-type "darwin"))
+  (defconst iswindows (string-equal system-type "windows-nt"))
+  (defconst islinux (string-equal system-type "gnu/linux"))
+  (defconst emacs-dir (file-name-directory (or load-file-name (buffer-file-name))))
+#+end_src
+
+* Basic Editor Behaviour
+Keep buffers in sync with file changes:
+#+begin_src emacs-lisp
+  (setq auto-revert-verbose t)
+  (global-auto-revert-mode t)
+  (add-hook 'after-init-hook 'global-auto-revert-mode)
+#+end_src
+
+Yes/no is too much typing:
+#+begin_src emacs-lisp
+  (defalias 'yes-or-no-p 'y-or-n-p)
+#+end_src
+
+I don't use recent files:
+#+begin_src emacs-lisp
+(recentf-mode -1)
+#+end_src
+
+I ditched smartparens and just use the built-in electric pair mode for now:
+#+begin_src emacs-lisp
+(show-paren-mode t)
+(electric-pair-mode 1)
+#+end_src
+
+Try to make the tab key 'smart':
+#+begin_src emacs-lisp
+  (setq tab-always-indent 'complete)
+  #+end_src
+
+Do not make backup files:
+  #+begin_src emacs-lisp
+  (setq make-backup-files nil)
+  (setq auto-save-default nil)
+#+end_src
+
+#+begin_src emacs-lisp
+(setq text-mode-ispell-word-completion nil)
+  #+end_src
+
+Some basic visuals:
+  #+begin_src emacs-lisp
+    (blink-cursor-mode 0)
+    (flymake-mode -1)
+    (global-hl-line-mode 1)
+    (setq inhibit-startup-message t)
+    (setq ring-bell-function 'ignore)
+    (scroll-bar-mode -1)
+    (tool-bar-mode -1)
+    (tooltip-mode -1)
+    (set-fringe-mode 10)
+#+end_src
+
+* Org Mode
+#+begin_src emacs-lisp
+  (use-package org
+    :straight t
+    :config
+    (setq org-startup-indented nil))
+
+  (use-package org-modern
+    :straight t
+    :config
+    (setq
+     ;; Edit settings
+     org-auto-align-tags nil
+     org-tags-column 0
+     org-catch-invisible-edits 'show-and-error
+     org-special-ctrl-a/e t
+     org-insert-heading-respect-content t
+
+     ;; Org styling, hide markup etc.
+     org-hide-emphasis-markers t
+     org-pretty-entities t
+     org-agenda-tags-column 0
+     org-ellipsis "…")
+    (global-org-modern-mode)
+  )
+#+end_src
+
+* Modeline
+Trying out this package:
+#+begin_src emacs-lisp
+  (use-package lambda-line
+  :straight (:type git :host github :repo "lambda-emacs/lambda-line") 
+  :custom
+  (lambda-line-icon-time t)
+  (lambda-line-clockface-update-fontset "ClockFaceRect") ;; set clock icon
+  (lambda-line-position 'bottom) ;; Set position of status-line 
+  (lambda-line-abbrev t)
+  (lambda-line-hspace "  ")
+  (lambda-line-prefix t)
+  (lambda-line-prefix-padding nil)
+  (lambda-line-status-invert nil)
+  (lambda-line-gui-ro-symbol  " ⨂")
+  (lambda-line-gui-mod-symbol " ⬤") 
+  (lambda-line-gui-rw-symbol  " ◯") 
+  (lambda-line-space-top +.0)
+  (lambda-line-space-bottom -.0)
+  (lambda-line-symbol-position 0.1)
+  :config
+  (lambda-line-mode) 
+  (when (eq lambda-line-position 'top)
+    (setq-default mode-line-format (list "%_"))
+    (setq mode-line-format (list "%_"))))
+#+end_src
+* Git
+Git proc for emacs
+#+begin_src emacs-lisp
+  (use-package magit
+    :straight t)
+#+end_src
+* Tabs
+Taken from Prot's Website a long time ago. Use it rarely, but keep it for now:
+#+begin_src emacs-lisp
+(setq tab-bar-close-button-show nil)
+(setq tab-bar-close-last-tab-choice 'tab-bar-mode-disable)
+(setq tab-bar-close-tab-select 'recent)
+(setq tab-bar-new-tab-choice t)
+(setq tab-bar-new-tab-to 'right)
+(setq tab-bar-position nil)
+(setq tab-bar-show nil)
+(setq tab-bar-tab-hints nil)
+(setq tab-bar-tab-name-function 'tab-bar-tab-name-all)
+
+(tab-bar-mode -1)
+(tab-bar-history-mode -1)
+
+(defun prot/tab-bar-select-tab-dwim ()
+  "Do-What-I-Mean function for getting to a `tab-bar-mode' tab.
+If no other tab exists, create one and switch to it.  If there is
+one other tab (so two in total) switch to it without further
+questions.  Else use completion to select the tab to switch to."
+  (interactive)
+  (let ((tabs (mapcar (lambda (tab)
+                        (alist-get 'name tab))
+                      (tab-bar--tabs-recent))))
+    (cond ((eq tabs nil)
+           (tab-new))
+          ((eq (length tabs) 1)
+           (tab-next))
+          (t
+           (tab-bar-switch-to-tab
+            (completing-read "Select tab: " tabs nil t))))))
+#+end_src
+* Snippets
+Tempel is excellent:
+#+begin_src emacs-lisp
+  (use-package tempel
+    :straight t
+    :init
+
+    (defun tempel-setup-capf ()
+      (setq-local completion-at-point-functions
+                  (cons #'tempel-expand completion-at-point-functions))
+    )
+
+    (setq tempel-trigger-prefix "<")
+    (setq tempel-path (concat emacs-dir "templates.el"))
+
+    (add-hook 'conf-mode-hook 'tempel-setup-capf)
+    (add-hook 'prog-mode-hook 'tempel-setup-capf)
+    (add-hook 'text-mode-hook 'tempel-setup-capf)
+  )
+#+end_src
+* Modal Editing
+** Expand Region
+#+begin_src emacs-lisp
+  (use-package expand-region
+    :straight (expand-region.el :type git :host github :repo "magnars/expand-region.el")
+    )
+#+end_src
+
+** Helper Functions
+#+begin_src emacs-lisp
+  (defun fst/modal-insert-line-below ()
+    "Insert a line below the current one"
+    (interactive)
+    (end-of-line)
+    (newline-and-indent))
+#+end_src
+
+#+begin_src emacs-lisp
+  (defun fst/key-udefined ()
+  "Report the pressed key as undefined."
+  (interactive)
+  (let ((k (this-command-keys-vector)))
+    (message "%s is not defined" (key-description k))))
+#+end_src
+
+#+begin_src emacs-lisp
+  (defun fst/kill-region (&optional n)
+    "If region is active, kill it. Otherwise delete character(s) forward without kill-ring pollution."
+    (interactive "p")
+    (if (use-region-p)
+        (kill-region (region-beginning) (region-end))
+      (delete-char (or n 1))))
+#+end_src
+
+** Modal Defaults
+#+name: modal-command-default
+#+begin_src emacs-lisp :tangle no
+  ("a" fst/key-udefined)
+  ("b" switch-to-buffer)
+  ("c" fst/key-udefined)
+  ("d" fst/kill-region)
+  ("e" er/expand-region)
+  ("f" fst/key-udefined)
+  ;;("g" fst/key-udefined)
+  ("h" fst/key-udefined)
+  ("i" fst/key-udefined)
+  ("j" fst/key-udefined)
+  ("k" fst/key-udefined)
+  ("l" fst/key-udefined)
+  ("m" fst/key-udefined)
+  ;;("n" fst/key-udefined)
+  ("o" fst/key-udefined)
+  ("p" fst/key-udefined)
+  ("q" fst/key-udefined)
+  ("r" fst/key-udefined)
+  ("s" save-buffer)
+  ("t" fst/key-udefined)
+  ("u" fst/key-udefined)
+  ("v" set-mark-command)
+  ("w" forward-word)
+  ("x" fst/key-udefined)
+  ("y" fst/key-udefined)
+  ("z" fst/key-udefined)
+  ("A" fst/key-udefined)
+  ("B" beginning-of-line)
+  ("C" fst/key-udefined)
+  ("D" fst/key-udefined)
+  ("E" end-of-line)
+  ("F" fst/key-udefined)
+  ("G" fst/key-udefined)
+  ("H" fst/key-udefined)
+  ("I" fst/key-udefined)
+  ("J" fst/key-udefined)
+  ("K" fst/key-udefined)
+  ("L" fst/key-udefined)
+  ("M" fst/key-udefined)
+  ("N" fst/key-udefined)
+  ("O" fst/key-udefined)
+  ("P" fst/key-udefined)
+  ("Q" fst/key-udefined)
+  ("R" fst/key-udefined)
+  ("S" fst/key-udefined)
+  ("T" fst/key-udefined)
+  ("U" fst/key-udefined)
+  ("V" fst/key-udefined)
+  ("W" forward-symbol)
+  ("X" fst/key-udefined)
+  ("Y" fst/key-udefined)
+  ("Z" fst/key-udefined)
+  ("." fst/key-udefined)
+  ("," fst/key-udefined)
+  ("/" isearch-forward)
+  ("(" er/mark-inside-pairs)
+  ("'" er/mark-inside-quotes)
+#+end_src
+
+** Modal Map: Space
+Defining the map:
+#+name: map-space
+  #+begin_src emacs-lisp :tangle no
+  (ryo-modal-keys
+   ("SPC"
+    (("s" cst/goto-section :name "Jump to section")
+     ("g" beginning-of-buffer :name "Jump to beginning of buffer")
+     ("G" end-of-buffer :name "Jump to end of buffer")
+     ))
+  )
+#+end_src
+
+** Model Map: Jumping
+Recognize section headings in my code:
+#+begin_src emacs-lisp
+  (defun cst/chose-from-alist (choice-text alist)
+    "Promts to select (car alist) then returns (cdr alist)."
+    (let ((candidate (completing-read "Chose: " alist))
+           (assoc-data nil))
+      (setq assoc-data (cdr (assoc candidate alist)))
+      assoc-data))
+
+  (defun make-section-start ()
+    "Creates the lines for a section heading"
+    (concat (make-string 2 (string-to-char comment-start)) " - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"))
+
+  (defun cst/goto-section ()
+    "Select section heading in current buffer to jump to"
+    (interactive)
+    (let ((entries nil)
+          (new-pos nil)
+          (selectrum-should-sort nil))
+      (save-excursion
+        (beginning-of-buffer)
+        (while (search-forward (make-section-start) nil t nil)
+          (next-line)
+          (beginning-of-line)
+          (forward-char 3)
+          ;; Store:
+          (push (cons (buffer-substring-no-properties (point) (line-end-position)) (+ 2 (line-number-at-pos))) entries)
+          (forward-line 3)))
+
+      (if (eq 0 (length entries))
+          (message "No headlines found.")
+        (setq new-pos (cst/chose-from-alist "Chose: " (sort entries (lambda (a b) (< (cdr a) (cdr b))))))
+        (goto-line new-pos)
+        (recenter-top-bottom))))
+  #+end_src
+
+Defining the map:
+#+name: map-jumping
+  #+begin_src emacs-lisp :tangle no
+  (ryo-modal-keys
+   ("g"
+    (("s" cst/goto-section :name "Jump to section")
+     ("g" beginning-of-buffer :name "Jump to beginning of buffer")
+     ("G" end-of-buffer :name "Jump to end of buffer")
+     ("d" dired-jump :name "Jump to Parrent Directory")
+     ))
+  )
+#+end_src
+
+** Bindings (Ryo-Modal)
+  #+begin_src emacs-lisp
+    (use-package ryo-modal
+    :straight t
+    :commands ryo-modal-mode
+    :bind (";" . ryo-modal-mode)
+    :config
+    (ryo-modal-keys
+     <<modal-command-default>>
+     )
+    
+    ;; Maps:
+    <<map-jumping>>
+    <<map-space>>
+
+    (ryo-modal-keys
+     ("," ryo-modal-repeat)
+     ("a" execute-extended-command)
+     ("h" backward-char)
+     ("j" next-line)
+     ("k" previous-line)
+     ("l" forward-char)
+     ("u" undo)
+     ("y" kill-ring-save)
+     ("p" yank)
+     ("." xref-find-definitions)
+     ("f" find-file)
+     ("o" fst/modal-insert-line-below :exit t)
+     )
+
+     (ryo-modal-keys
+     ;; First argument to ryo-modal-keys may be a list of keywords.
+     ;; These keywords will be applied to all keybindings.
+     (:norepeat t)
+     ("0" "M-0")
+     ("1" "M-1")
+     ("2" "M-2")
+     ("3" "M-3")
+     ("4" "M-4")
+     ("5" "M-5")
+     ("6" "M-6")
+     ("7" "M-7")
+     ("8" "M-8")
+     ("9" "M-9"))
+
+     (add-hook 'find-file-hook 'ryo-modal-mode)
+     )
+#+end_src
+
+* Which Key
+Will be integrated into Emacs 30 apparently
+#+begin_src emacs-lisp
+  (use-package which-key
+    :straight t
+    :diminish
+    :functions
+    which-key-mode
+    :config
+    (which-key-mode))
+#+end_src
+  
+* Wgrep
+Writable grep buffers:
+#+begin_src emacs-lisp
+  (use-package wgrep :straight t)
+#+end_src
+* Themes
+Prot's theme:
+#+begin_src emacs-lisp
+(use-package modus-themes
+  :straight t
+  :demand t
+  :init
+  ;; Starting with version 5.0.0 of the `modus-themes', other packages
+  ;; can be built on top to provide their own "Modus" derivatives.
+  ;; For example, this is what I do with my `ef-themes' and
+  ;; `standard-themes' (starting with versions 2.0.0 and 3.0.0,
+  ;; respectively).
+  ;;
+  ;; The `modus-themes-include-derivatives-mode' makes all Modus
+  ;; commands that act on a theme consider all such derivatives, if
+  ;; their respective packages are available and have been loaded.
+  ;;
+  ;; Note that those packages can even completely take over from the
+  ;; Modus themes such that, for example, `modus-themes-rotate' only
+  ;; goes through the Ef themes (to this end, the Ef themes provide
+  ;; the `ef-themes-take-over-modus-themes-mode' and the Standard
+  ;; themes have the `standard-themes-take-over-modus-themes-mode'
+  ;; equivalent).
+  ;;
+  ;; If you only care about the Modus themes, then (i) you do not need
+  ;; to enable the `modus-themes-include-derivatives-mode' and (ii) do
+  ;; not install and activate those other theme packages.
+  (modus-themes-include-derivatives-mode 1)
+
+  (defvar cst/font-height 180)
+  (set-face-attribute 'default nil :height cst/font-height :family "Fira Code")
+  (set-face-attribute 'fixed-pitch nil :family "Fira Code")
+  (set-face-attribute 'variable-pitch nil :family "Fira Code")
+  
+  :bind
+  (("<f5>" . modus-themes-rotate)
+   ("C-<f5>" . modus-themes-select)
+   ("M-<f5>" . modus-themes-load-random))
+  :config
+  ;; Your customizations here:
+  (setq modus-themes-to-toggle '(modus-operandi modus-vivendi)
+        modus-themes-to-rotate modus-themes-items
+        modus-themes-mixed-fonts t
+        modus-themes-variable-pitch-ui t
+        modus-themes-italic-constructs t
+        modus-themes-bold-constructs t
+        modus-themes-completions '((t . (bold)))
+        modus-themes-prompts '(bold)
+        modus-themes-headings
+        '((agenda-structure . (variable-pitch light 2.2))
+          (agenda-date . (variable-pitch regular 1.3))
+          (t . (regular 1.15))))
+
+  (setq modus-themes-common-palette-overrides nil)
+
+  ;; Finally, load your theme of choice (or a random one with
+  ;; `modus-themes-load-random', `modus-themes-load-random-dark',
+  ;; `modus-themes-load-random-light').
+  (modus-themes-load-theme 'modus-vivendi))  
+#+end_src
+
+* Completing-read enhancements
+How to order matches:
+#+begin_src emacs-lisp
+(use-package orderless
+  :straight t
+  :custom
+  (completion-styles '(orderless basic))
+  (completion-category-overrides '((file (styles partial-completion))))
+  (completion-category-defaults nil)
+  (completion-pcm-leading-wildcard t))
+#+end_src
+
+Display matches vertically:
+#+begin_src emacs-lisp
+(use-package vertico
+  :straight t
+  :init
+  (vertico-mode))  
+#+end_src
+
+Display more information:
+#+begin_src emacs-lisp
+  (use-package marginalia
+  :straight t
+  :config
+  (marginalia-mode))
+#+end_src
+
+Corfu enhances in-buffer completion with a small completion popup:
+#+begin_src emacs-lisp
+(use-package corfu
+  :straight t
+  ;; Optional customizations
+  :custom
+  (corfu-cycle t)                ;; Enable cycling for `corfu-next/previous'
+  (corfu-auto t)
+  (corfu-auto-prefix 2)
+  (corfu-auto-delay 0.0)
+  ;; (corfu-quit-at-boundary nil)   ;; Never quit at completion boundary
+  ;; (corfu-quit-no-match nil)      ;; Never quit, even if there is no match
+  ;; (corfu-preview-current nil)    ;; Disable current candidate preview
+  ;; (corfu-preselect 'prompt)      ;; Preselect the prompt
+  ;; (corfu-on-exact-match 'insert) ;; Configure handling of exact matches
+  :init
+  (global-corfu-mode)
+  (corfu-history-mode)
+  )  
+#+end_src
+
+Consult:
+#+begin_src emacs-lisp
+  (use-package consult
+    :straight t
+    :demand t
+    :hook (completion-list-mode . consult-preview-at-point-mode)
+
+    ;; The :init configuration is always executed (Not lazy)
+    :init
+    (advice-add #'register-preview :override #'consult-register-window)
+    (setq register-preview-delay 0.5)
+
+    ;; Use Consult to select xref locations with preview
+    (setq xref-show-xrefs-function #'consult-xref
+          xref-show-definitions-function #'consult-xref)
+
+    (ryo-modal-keys
+     ("/" consult-line :exit nil)
+     ("b" consult-buffer)
+     )
+
+    :config
+    (consult-customize
+     consult-theme :preview-key '(:debounce 0.2 any)
+     consult-ripgrep consult-git-grep consult-grep consult-man
+     consult-bookmark consult-recent-file consult-xref
+     consult-source-bookmark consult-source-file-register
+     consult-source-recent-file consult-source-project-recent-file
+     :preview-key '(:debounce 0.4 any))		
+    )
+#+END_SRC
+
+Act on selections with embark:
+#+begin_src emacs-lisp
+(use-package embark
+  :straight t
+  :bind
+  (("C-." . embark-act)         ;; pick some comfortable binding
+   ("C-;" . embark-dwim)        ;; good alternative: M-.
+   ("C-h B" . embark-bindings)) ;; alternative for `describe-bindings'
+  :init
+  ;; Optionally replace the key help with a completing-read interface
+  (setq prefix-help-command #'embark-prefix-help-command)
+  :config
+  ;; Hide the mode line of the Embark live/completions buffers
+  (add-to-list 'display-buffer-alist
+               '("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
+                 nil
+                 (window-parameters (mode-line-format . none)))))  
+#+END_SRC
+
+Combine it with consult:
+#+begin_src emacs-lisp
+(use-package embark-consult
+  :straight t
+  :hook
+  (embark-collect-mode . consult-preview-at-point-mode))
+#+end_src
+
+* Denote
+
+Keymap:
+#+name: keymap-denote
+#+begin_src emacs-lisp :tangle no
+#+end_src
+
+Base package:
+  #+begin_src emacs-lisp
+    (use-package denote
+      :straight t
+      :demand t
+      :hook
+      (
+       (text-mode . denote-fontify-links-mode-maybe)
+       (dired-mode . denote-dired-mode))
+      :config
+
+      ;; Remember to check the doc string of each of those variables.
+      (setq denote-directory (expand-file-name "/Users/florian/Library/Mobile Documents/com~apple~CloudDocs/Denote"))
+      (setq denote-save-buffers nil)
+      (setq denote-known-keywords nil)
+      (setq denote-infer-keywords t)
+      (setq denote-sort-keywords t)
+      (setq denote-prompts '(signature title keywords))
+      (setq denote-excluded-directories-regexp nil)
+      (setq denote-keywords-to-not-infer-regexp nil)
+      (setq denote-rename-confirmations '(rewrite-front-matter modify-file-name))
+
+      ;; Pick dates, where relevant, with Org's advanced interface:
+      (setq denote-date-prompt-use-org-read-date t)
+
+      ;; Automatically rename Denote buffers using the `denote-rename-buffer-format'.
+      (denote-rename-buffer-mode 1)
+
+      (defun my-denote--split-luhman-sig (signature)
+        "Split numbers and letters in Luhmann-style SIGNATURE string."
+        (replace-regexp-in-string
+         "\\([a-zA-Z]+?\\)\\([0-9]\\)" "\\1=\\2"
+         (replace-regexp-in-string
+          "\\([0-9]+?\\)\\([a-zA-Z]\\)" "\\1=\\2"
+          signature)))
+
+      (defun my-denote--pad-sig (signature)
+        "Create a new signature with padded spaces for all components"
+        (combine-and-quote-strings
+         (mapcar
+          (lambda (x)
+            (string-pad x 5 32 t))
+          (split-string (my-denote--split-luhman-sig signature) "=" t))
+         "="))
+
+      (defun my-denote-sort-for-signatures (sig1 sig2)
+        "Return non-nil if SIG1 is smaller that SIG2.
+    Perform the comparison with `string<'."
+        (string< (my-denote--pad-sig sig1) (my-denote--pad-sig sig2)))
+
+      ;; Change the sorting function only when we sort by signature.
+      (setq denote-sort-signature-comparison-function #'my-denote-sort-for-signatures)
+      )  
+#+end_src
+
+Org specific:
+#+begin_src emacs-lisp
+  (use-package denote-org
+    :straight t
+    :demand t
+    )
+#+end_src
+
+
+Zettelkasten:
+#+begin_src emacs-lisp
+  (use-package denote-sequence
+    :straight t
+    :demand t
+    :config
+    (setq denote-sequence-scheme 'alphanumeric))
+#+end_src
+
+
+Combine with consult:
+#+begin_src emacs-lisp
+  (use-package consult-notes
+    :straight (:type git :host github :repo "mclear-tools/consult-notes")
+    :demand t
+    :commands (consult-notes
+               consult-notes-search-in-all-notes)
+    :config
+    (ryo-modal-keys
+     ("n"
+      (("f" consult-notes :name "Note find")
+       ("s" denote-sequence-new-sibling-of-current :name "Note Sibling")
+       ("c" denote-sequence-new-child-of-current :name "Note ...")
+       ))
+     )
+    (when (locate-library "denote")
+      (consult-notes-denote-mode))
+    ;; search only for text files in denote dir
+    (setq consult-notes-denote-files-function (lambda () (denote-directory-files nil t t))))
+#+end_src
+* R (ESS)
+** Helper Function: Restarting R
+Brute-force restart of the inferior ess process:
+#+name: fst/ess-restart-r :tangle no
+#+begin_src emacs-lisp
+  (defun fst/ess-restart-r ()
+    "Force-restart the *current* inferior ESS R process, then restore focus.
+
+    Brutal shutdown:
+    - disables query-on-exit,
+    - tries SIGKILL (POSIX) if we can get a PID,
+    - then falls back to `kill-process' / `delete-process',
+    - kills the associated inferior buffer,
+    - starts R again.
+
+    UI behavior:
+    - tries hard not to steal your window/frame focus;
+    - always returns you to the original frame/window/buffer/point."
+    (interactive)
+    (require 'ess)
+
+    (let* ((orig-frame (selected-frame))
+           (orig-win   (selected-window))
+           (orig-buf   (current-buffer))
+           (orig-pt    (point))
+           (proc (or (and (fboundp 'ess-get-process) (ess-get-process))
+                     (get-buffer-process (current-buffer)))))
+      (unless proc
+        (user-error "No ESS process found (are you in an ESS buffer / have an R process?)"))
+
+      (let* ((pname (process-name proc))
+             (pbuf  (process-buffer proc))
+             (dir   (and (buffer-live-p pbuf)
+                         (buffer-local-value 'default-directory pbuf)))
+             (pid   (ignore-errors (process-id proc))))
+
+        (save-selected-window
+          (save-window-excursion
+            ;; --- Kill the process as forcefully as we can ---
+            (when (process-live-p proc)
+              (set-process-query-on-exit-flag proc nil)
+              ;; Try SIGKILL first when possible (POSIX). Ignore failures (Windows/remote/etc).
+              (when (and pid (integerp pid) (fboundp 'signal-process))
+                (ignore-errors (signal-process pid 'SIGKILL)))
+              ;; Fall back to Emacs-level killing.
+              (ignore-errors (kill-process proc))
+              (ignore-errors (delete-process proc)))
+
+            ;; --- Kill the inferior buffer too (no questions) ---
+            (when (buffer-live-p pbuf)
+              (with-current-buffer pbuf
+                (let ((kill-buffer-query-functions nil))
+                  (kill-buffer pbuf))))
+
+            ;; --- Start a fresh R, preserving dir and (if possible) the process name ---
+            (let ((default-directory (or dir default-directory)))
+              (if (and pname (boundp 'ess-local-process-name))
+                  (let ((ess-local-process-name pname))
+                    (R))
+                (R))))))
+
+      ;; --- Restore focus/selection exactly where you were ---
+      (when (frame-live-p orig-frame)
+        ;; Makes the OS input focus follow (helpful on GUI).
+        (ignore-errors (select-frame-set-input-focus orig-frame)))
+      (when (window-live-p orig-win)
+        (select-window orig-win))
+      (when (buffer-live-p orig-buf)
+        (switch-to-buffer orig-buf))
+      (when (and (buffer-live-p orig-buf) (integer-or-marker-p orig-pt))
+        (goto-char (min orig-pt (point-max))))))
+#+end_src
+ 
+** Helper Function: Cycle Assign
+#+name: fst/cycle-assign
+#+begin_src emacs-lisp :tangle no
+  (defun fst/cycle-assign (cycle-list)
+      "Taken from ESS. Cycle between assignment symbols in `cycle-list'.
+               On consecutive calls, replace the assignment symbol before point
+               with the next symbol from that list. This function sets the last
+               keypress to repeat it, so if it is bound to \"C-c C-=\" pressing
+               \"=\" again cycles to the next assignment."
+      (if (eq last-command this-command)
+          (let ((slist cycle-list)
+                str)
+            ;; The or statements in the setq allow cycling past the end of
+            ;; cycle-list.
+            (while (and (setq str (or (car slist) (car cycle-list))
+                              slist (or (cdr slist) cycle-list))
+                        (not (and (re-search-backward str
+                                                      (- (point) (length str)) t)
+                                  (not (replace-match (car slist))))))))
+        (insert (car cycle-list)))
+      (set-transient-map
+       (let ((map (make-sparse-keymap))
+             (key (format "%c" (event-basic-type last-input-event))))
+         (define-key map (kbd key) #'ess-pipes-cycle-assign)
+         map)))
+#+end_src
+
+** ESS Package Setup
+#+begin_src emacs-lisp
+  (use-package ess
+    :straight t
+    :mode (("\\.R\\'" . ess-r-mode)
+           ("\\.r\\'" . ess-r-mode)
+           )
+    :init
+    (setq ess-ask-for-ess-directory nil)
+    :config
+    (require 'ess-site)
+    (setq ess-eval-visibly 'nowait)
+    (setq ess-use-flymake nil)
+    (setq ess-tab-complete-in-script t)
+    (setq ess-indent-with-fancy-comments nil)
+    (setq ess-offset-continued 'straight)
+
+    (setq ess-help-own-frame 'one)
+
+    (setq ess-r-program "R")
+    (setq inferior-ess-r-program "R")
+
+    (define-key ess-r-mode-map (kbd "C-c C-r") #'ess-eval-region)
+    (define-key ess-r-mode-map (kbd "C-c C-b") #'ess-eval-buffer)
+    (define-key ess-r-mode-map (kbd "C-c C-l") #'ess-eval-line-and-step)
+    (define-key ess-r-mode-map (kbd "C-c C-p") #'ess-eval-paragraph-and-step)
+    (define-key ess-r-mode-map (kbd "C-c C-x") #'cst/ess-restart-r)
+
+    (define-key ess-r-mode-map ";" #'ess-insert-assign)              
+    (define-key inferior-ess-r-mode-map ";" #'ess-insert-assign)              
+    (define-key ess-r-mode-map (kbd "C-;") (lambda () (interactive) (cst/cycle-assign '("%>% " "%<>% ")))) 
+    (define-key inferior-ess-r-mode-map (kbd "C-;") (lambda () (interactive) (cst/cycle-assign '("%>% " "%<>% "))))
+
+    (add-hook 'ess-r-mode-hook
+              (lambda ()
+                (setq-local comment-column 40)
+                (setq-local fill-column 80)
+                (electric-pair-local-mode 1)
+                (eldoc-mode 1)))
+
+    (add-hook 'inferior-ess-mode-hook
+              (lambda ()
+                (setq-local scroll-conservatively 101)
+                (setq-local comint-scroll-to-bottom-on-input t)
+                (setq-local comint-scroll-to-bottom-on-output t)
+                (setq-local comint-move-point-for-output t)))
+
+    <<fst/ess-restart-r>>
+    <<fst/cycle-assign>>
+    )
+#+end_src
+* Julia
+Bring back julia setup
+#+begin_src emacs-lisp
+  
+#+end_src
