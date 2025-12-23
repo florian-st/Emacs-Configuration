@@ -238,6 +238,24 @@ Tempel is excellent:
       (delete-char (or n 1))))
 #+end_src
 
+Taken from meow, to quit a window:
+#+begin_src emacs-lisp
+(defun cst/window-quit ()
+  "Quit current window or buffer."
+  (interactive)
+  (if (> (seq-length (window-list (selected-frame))) 1)
+      (quit-window)
+    (previous-buffer)))
+#+end_src
+
+Other window in reverse:
+#+begin_src emacs-lisp
+  (defun fst/other-window-backwards (&optional n)
+    "Select the previous window. With prefix arg N, move backward N windows."
+    (interactive "p")
+    (other-window (- n)))
+#+end_src
+
 ** Modal Defaults
 #+name: modal-command-default
 #+begin_src emacs-lisp :tangle no
@@ -249,7 +267,7 @@ Tempel is excellent:
   ("f" fst/key-udefined)
   ;;("g" fst/key-udefined)
   ("h" fst/key-udefined)
-  ("i" fst/key-udefined)
+  ("i" other-window)
   ("j" fst/key-udefined)
   ("k" fst/key-udefined)
   ("l" fst/key-udefined)
@@ -257,7 +275,7 @@ Tempel is excellent:
   ;;("n" fst/key-udefined)
   ("o" fst/key-udefined)
   ("p" fst/key-udefined)
-  ("q" fst/key-udefined)
+  ("q" cst/window-quit)
   ("r" fst/key-udefined)
   ("s" save-buffer)
   ("t" fst/key-udefined)
@@ -275,7 +293,7 @@ Tempel is excellent:
   ("F" fst/key-udefined)
   ("G" fst/key-udefined)
   ("H" fst/key-udefined)
-  ("I" fst/key-udefined)
+  ("I" fst/other-window-backwards)
   ("J" fst/key-udefined)
   ("K" fst/key-udefined)
   ("L" fst/key-udefined)

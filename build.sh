@@ -26,6 +26,7 @@ emacs --batch -Q --load "${ROOT}/build.el"
 # Copy into destination
 mv "${OUT}/early-init.el" "${DEST}/early-init.el"
 mv "${OUT}/init.el"       "${DEST}/init.el"
+cp "templates.el"         "${DEST}/templates.el"
 
 echo "Deployed:"
 echo "  ${DEST}/early-init.el"
