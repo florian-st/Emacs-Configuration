@@ -645,6 +645,14 @@ Combine it with consult:
   (embark-collect-mode . consult-preview-at-point-mode))
 #+end_src
 
+* Vterm
+If on Unix like:
+#+begin_src emacs-lisp
+  (when (not iswindows)
+    (use-package vterm
+      :straight t)
+    )
+#+end_src
 * Denote
 
 Keymap:
