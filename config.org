@@ -41,6 +41,13 @@ Knwo which OS we are on and so on:
 #+end_src
 
 * Basic Editor Behaviour
+
+This is a hack to make eglot-jl work:
+#+begin_src emacs-lisp
+(straight-use-package 'project)
+(straight-use-package 'flymake)
+#+end_src
+
 Keep buffers in sync with file changes:
 #+begin_src emacs-lisp
   (setq auto-revert-verbose t)
@@ -90,6 +97,23 @@ Some basic visuals:
     (tool-bar-mode -1)
     (tooltip-mode -1)
     (set-fringe-mode 10)
+#+end_src
+
+* Operating System Adjustments
+Make it work on macOS:
+#+begin_src emacs-lisp
+  (when ismac
+    (setq mac-command-modifier 'control)
+    (setq mac-right-command-modifier 'control)
+    (setq insert-directory-program "/usr/local/bin/gls")
+
+    (use-package exec-path-from-shell
+      :straight t
+      :demand t
+      :config
+      (exec-path-from-shell-initialize)
+      )    
+    )
 #+end_src
 
 * Org Mode
@@ -650,7 +674,10 @@ If on Unix like:
 #+begin_src emacs-lisp
   (when (not iswindows)
     (use-package vterm
-      :straight t)
+      :straight t
+      :config
+      (define-key vterm-mode-map (kbd "C-;") #'ryo-modal-mode)
+      )
     )
 #+end_src
 * Denote
@@ -745,8 +772,9 @@ Combine with consult:
     (ryo-modal-keys
      ("n"
       (("f" consult-notes :name "Note find")
-       ("s" denote-sequence-new-sibling-of-current :name "Note Sibling")
-       ("c" denote-sequence-new-child-of-current :name "Note ...")
+       ("s" denote-sequence-new-sibling-of-current :name "New Sibling")
+       ("c" denote-sequence-new-child-of-current :name "New Child")
+       ("l" denote-link :name "New Link")
        ))
      )
     (when (locate-library "denote")
@@ -909,9 +937,35 @@ Local keymap for ess-r-mode:
     )
 #+end_src
 * Julia
-Bring back julia setup
+
+Experiment with tree sitter:
 #+begin_src emacs-lisp
-  
+  (use-package treesit-auto
+    :straight t
+    :config
+    (global-treesit-auto-mode))
+
+  (use-package julia-ts-mode
+    :straight t
+    :mode "\\.jl$"
+    :config
+    (add-hook 'julia-ts-mode-hook 'eglot-ensure)
+    )
+#+end_src
+
+
+REPL:
+#+begin_src emacs-lisp
+  (use-package eglot-jl
+    :straight t)
+
+  (use-package julia-repl
+    :straight t
+    :config
+    (julia-repl-set-terminal-backend 'vterm)
+    (add-hook 'julia-mode-hook 'eglot-jl-init)
+    ;;(define-key julia-repl-mode-map (kbd "C-;") #'ryo-modal-mode)
+    )
 #+end_src
 * Ledger
 Personal bookkeeping:
