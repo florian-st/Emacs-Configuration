@@ -30,13 +30,14 @@ Emacs should never touch init.el
 (setq custom-file (locate-user-emacs-file "custom.el"))
 (load custom-file 'noerror)
 #+end_src
-** Global Variables
+* Global Variables
 Knwo which OS we are on and so on:
 #+begin_src emacs-lisp
   (defconst ismacbook (string-equal (system-name) "Florians-MacBook-Pro.local"))
   (defconst ismac (string-equal system-type "darwin"))
   (defconst iswindows (string-equal system-type "windows-nt"))
   (defconst islinux (string-equal system-type "gnu/linux"))
+  (defconst zettelkasten-dir "/Users/florian/Nextcloud/proj/Zettelkasten")
   (defconst emacs-dir (file-name-directory (or load-file-name (buffer-file-name))))
 #+end_src
 
@@ -91,6 +92,7 @@ Some basic visuals:
     (blink-cursor-mode 0)
     (flymake-mode -1)
     (global-hl-line-mode 1)
+    (global-visual-line-mode 1)
     (setq inhibit-startup-message t)
     (setq ring-bell-function 'ignore)
     (scroll-bar-mode -1)
@@ -105,42 +107,206 @@ Make it work on macOS:
   (when ismac
     (setq mac-command-modifier 'control)
     (setq mac-right-command-modifier 'control)
+
+    (setq mac-option-modifier 'meta)
+    (setq mac-right-option-modifier 'none)
+    
     (setq insert-directory-program "/usr/local/bin/gls")
 
     (use-package exec-path-from-shell
       :straight t
       :demand t
       :config
+
+      (dolist (var '("PATH" "MANPATH" "LANG" "LC_ALL" "LC_CTYPE"))
+        (add-to-list 'exec-path-from-shell-variables var))
+      
       (exec-path-from-shell-initialize)
       )    
     )
 #+end_src
 
 * Org Mode
+** Custom Link Types
+Hookmark:
+#+name: org-custom-links
+#+begin_src emacs-lisp :tangle no
+  (defun my-org-open-url-via-os (url)
+    "Open URL via the OS default handler (so custom schemes like hook:// work)."
+    (pcase system-type
+      ('darwin     (start-process "open-url" nil "open" url))
+      ('gnu/linux  (start-process "open-url" nil "xdg-open" url))
+      ('windows-nt (w32-shell-execute "open" url))
+      (_           (browse-url url))))
+
+  (org-link-set-parameters
+   "hook"
+   :follow (lambda (path _arg)
+             (my-org-open-url-via-os (concat "hook:" path))))
+
+  (org-link-set-parameters
+   "busycalevent"
+   :follow (lambda (path _arg)
+             (my-org-open-url-via-os (concat "busycalevent:" path))))
+#+end_src
+** Org-modern
+For a better overall look:
+#+begin_src emacs-lisp
+  (use-package org-modern
+      :straight t
+      :after org
+      :config
+      (setq
+       ;; Edit settings
+       org-auto-align-tags nil
+       org-tags-column 0
+       org-catch-invisible-edits 'show-and-error
+       org-special-ctrl-a/e t
+       org-insert-heading-respect-content t
+
+       ;; Org styling, hide markup etc.
+       org-hide-emphasis-markers t
+       org-pretty-entities t
+       org-agenda-tags-column 0
+       org-ellipsis "…")
+      (global-org-modern-mode))
+#+end_src
+
+#+begin_src emacs-lisp
+  (use-package htmlize :straight t)
+#+end_src
+
+** GTD
+Tags are used as contexts:
+#+name: org-gtd-contexts
+#+begin_src emacs-lisp :tangle no
+  (setq org-tag-alist '(("@home" . ?h)
+                        ("@office"  . ?o)
+                        ("@loc"  . ?l)
+  		      ("calls" . ?c)
+  		      ("readreview" ?r)
+  		      ("agendas" ?a)
+                        ("@pc"   . ?p)))
+#+end_src
+
+Keywords represent action types:
+#+name: org-gtd-actions
+#+begin_src emacs-lisp :tangle no
+  (setq org-todo-keywords
+        '((sequence "TODO(t)" ;; Next action
+                    "STARTED(s!)" ;; Started
+                    "WAITING(w@/!)" ;; Waiting for (list). Not sure wheter promting for explaination is needed.
+                    "APPT(a!)" ;; Calendar item
+                    "|"
+                    "DONE(d!)" ;; Successful completion
+                    "CANCELED(c@)"))) ;; Could not be completed (promt for explaination)
+#+end_src
+
+Create an ID for each captured item:
+#+name: org-gtd-capture-id
+#+begin_src emacs-lisp :tangle no
+#+end_src
+
+Keep agenda files minimal:
+#+name: org-gtd-gtd-files
+#+begin_src emacs-lisp :tangle no
+  (setq org-agenda-files (list "/Users/florian/Nextcloud/proj/Zettelkasten/20260101T093017==99a--gtd-inbox.org"
+  			     "/Users/florian/Nextcloud/proj/Zettelkasten/20260101T093024==99b--gtd-actions.org"
+  			     "/Users/florian/Nextcloud/proj/Zettelkasten/20260101T093053==99e--gtd-areas.org"
+  			     ))
+#+end_src
+
+Minimal set of capture templates
+#+name: org-gtd-gtd-capture
+#+begin_src emacs-lisp :tangle no
+  (setq org-capture-templates
+        '(("t" "Inbox" entry
+           (file "/Users/florian/Nextcloud/proj/Zettelkasten/20260101T093017==99a--gtd-inbox.org")
+           "* TODO %?\n:PROPERTIES:\n:CREATED: %U\n:ID: %(org-id-new)\n:END:\n"
+           :empty-lines 0)
+  	("p" "Project" entry
+           (file "/Users/florian/Nextcloud/proj/Zettelkasten/20260101T093035==99c--gtd-projects.org")
+           "* %?\n:PROPERTIES:\n:CREATED: %U\n:ID: %(org-id-new)\n:END:\n"
+           :empty-lines 0)
+  	  	("P" "Area of Focus" entry
+           (file "/Users/florian/Nextcloud/proj/Zettelkasten/20260101T093053==99e--gtd-areas.org")
+           "* %?\n:PROPERTIES:\n:CREATED: %U\n:ID: %(org-id-new)\n:END:\n"
+           :empty-lines 0)
+  	))
+#+end_src
+
+Refiling:
+#+name org-gtd-refile
+#+begin_src emacs-lisp :tangle no
+  (setq org-refile-use-outline-path 'file)
+  (setq org-outline-path-complete-in-steps nil)
+  (setq org-refile-targets '((org-agenda-files :level . 1)))
+#+end_src
+
+** Use-package
 #+begin_src emacs-lisp
   (use-package org
     :straight t
+    :demand t
     :config
-    (setq org-startup-indented nil))
+    (setq org-startup-indented nil)
 
-  (use-package org-modern
+    <<org-custom-links>>
+    <<org-gtd-contexts>>
+    <<org-gtd-contexts>>
+    <<org-gtd-actions>>
+    <<org-gtd-gtd-files>>
+    <<org-gtd-gtd-capture>>
+    <<org-gtd-capture-id>>
+    <<org-gtd-refile>>
+    )
+#+end_src
+
+** Agenda views
+#+begin_src emacs-lisp
+  (use-package org-super-agenda
     :straight t
     :config
-    (setq
-     ;; Edit settings
-     org-auto-align-tags nil
-     org-tags-column 0
-     org-catch-invisible-edits 'show-and-error
-     org-special-ctrl-a/e t
-     org-insert-heading-respect-content t
+    (org-super-agenda-mode 1)
+    )
 
-     ;; Org styling, hide markup etc.
-     org-hide-emphasis-markers t
-     org-pretty-entities t
-     org-agenda-tags-column 0
-     org-ellipsis "…")
-    (global-org-modern-mode)
-  )
+  (setq org-agenda-custom-commands
+      '(("g" "Grouped TODOs + Scheduled next 14 days"
+         ((alltodo ""
+                   ((org-super-agenda-groups '((:auto-tags t)))
+                    (org-agenda-prefix-format '((todo . " %i ")
+                                               (tags . " %i ")
+                                               (search . " %i ")))))
+          (agenda ""
+                  ((org-agenda-span 14)
+                   (org-agenda-start-day "+0d")
+                   (org-agenda-entry-types '(:scheduled))
+                   (org-agenda-overriding-header "Scheduled (next 14 days)")
+  		 (org-agenda-remove-tags t)
+                   (org-agenda-prefix-format '((agenda . " %i %?-12t% s")))))))))
+
+
+  (setq org-agenda-show-all-dates nil)
+#+end_src
+** Misc
+Taken from old config:
+#+begin_src emacs-lisp
+  
+
+
+  (setq org-log-into-drawer t)
+  ;; Tags should appear directly after text:
+  (setq org-tags-column 0)
+
+  
+#+end_src
+
+* Dired
+Make j/k move up and down:
+#+begin_src emacs-lisp
+(with-eval-after-load 'dired
+  (define-key dired-mode-map (kbd "j") #'dired-next-line)
+  (define-key dired-mode-map (kbd "k") #'dired-previous-line))
 #+end_src
 
 * Modeline
@@ -306,7 +472,7 @@ Other window in reverse:
   ("u" fst/key-udefined)
   ("v" set-mark-command)
   ("w" forward-word)
-  ("x" fst/key-udefined)
+ ;;("x" fst/key-udefined)
   ("y" fst/key-udefined)
   ("z" fst/key-udefined)
   ("A" fst/key-udefined)
@@ -408,50 +574,59 @@ Defining the map:
 ** Bindings (Ryo-Modal)
   #+begin_src emacs-lisp
     (use-package ryo-modal
-    :straight t
-    :commands ryo-modal-mode
-    :bind (";" . ryo-modal-mode)
-    :config
-    (ryo-modal-keys
-     <<modal-command-default>>
-     )
-    
-    ;; Maps:
-    <<map-jumping>>
-    <<map-space>>
+      :straight t
+      :commands ryo-modal-mode
+      :bind (";" . ryo-modal-mode)
+      :config
+      (ryo-modal-keys
+       <<modal-command-default>>
+       )
 
-    (ryo-modal-keys
-     ("," ryo-modal-repeat)
-     ("a" execute-extended-command)
-     ("h" backward-char)
-     ("j" next-line)
-     ("k" previous-line)
-     ("l" forward-char)
-     ("u" undo)
-     ("y" kill-ring-save)
-     ("p" yank)
-     ("." xref-find-definitions)
-     ("f" find-file)
-     ("o" fst/modal-insert-line-below :exit t)
-     )
+      ;; Maps:
+      <<map-jumping>>
+      <<map-space>>
 
-     (ryo-modal-keys
-     ;; First argument to ryo-modal-keys may be a list of keywords.
-     ;; These keywords will be applied to all keybindings.
-     (:norepeat t)
-     ("0" "M-0")
-     ("1" "M-1")
-     ("2" "M-2")
-     ("3" "M-3")
-     ("4" "M-4")
-     ("5" "M-5")
-     ("6" "M-6")
-     ("7" "M-7")
-     ("8" "M-8")
-     ("9" "M-9"))
+      (ryo-modal-keys
+       ("," ryo-modal-repeat)
+       ("a" execute-extended-command)
+       ("h" backward-char)
+       ("j" next-line)
+       ("k" previous-line)
+       ("l" forward-char)
+       ("u" undo)
+       ("y" kill-ring-save)
+       ("p" yank)
+       ("." xref-find-definitions)
+       ("f" find-file)
+       ("o" fst/modal-insert-line-below :exit t)
+       )
 
-     (add-hook 'find-file-hook 'ryo-modal-mode)
-     )
+      (ryo-modal-keys
+       ;; First argument to ryo-modal-keys may be a list of keywords.
+       ;; These keywords will be applied to all keybindings.
+       (:norepeat t)
+       ("0" "M-0")
+       ("1" "M-1")
+       ("2" "M-2")
+       ("3" "M-3")
+       ("4" "M-4")
+       ("5" "M-5")
+       ("6" "M-6")
+       ("7" "M-7")
+       ("8" "M-8")
+       ("9" "M-9"))
+
+      (ryo-modal-keys
+       ("x"
+        (("a" org-agenda :name "Agenda")
+         ("c" org-capture :name "Capture")
+         ("r" org-refile)
+         ))
+       )
+
+
+      (add-hook 'find-file-hook 'ryo-modal-mode)
+      )
 #+end_src
 
 * Which Key
@@ -582,23 +757,26 @@ Display more information:
 
 Corfu enhances in-buffer completion with a small completion popup:
 #+begin_src emacs-lisp
-(use-package corfu
-  :straight t
-  ;; Optional customizations
-  :custom
-  (corfu-cycle t)                ;; Enable cycling for `corfu-next/previous'
-  (corfu-auto t)
-  (corfu-auto-prefix 2)
-  (corfu-auto-delay 0.0)
-  ;; (corfu-quit-at-boundary nil)   ;; Never quit at completion boundary
-  ;; (corfu-quit-no-match nil)      ;; Never quit, even if there is no match
-  ;; (corfu-preview-current nil)    ;; Disable current candidate preview
-  ;; (corfu-preselect 'prompt)      ;; Preselect the prompt
-  ;; (corfu-on-exact-match 'insert) ;; Configure handling of exact matches
-  :init
-  (global-corfu-mode)
-  (corfu-history-mode)
-  )  
+  (use-package corfu
+    :straight t
+    ;; Optional customizations
+    :custom
+    (corfu-cycle t)                ;; Enable cycling for `corfu-next/previous'
+    (corfu-auto t)
+    (corfu-auto-prefix 2)
+    (corfu-auto-delay 0.2)
+    ;; (corfu-quit-at-boundary nil)   ;; Never quit at completion boundary
+    ;; (corfu-quit-no-match nil)      ;; Never quit, even if there is no match
+    ;; (corfu-preview-current nil)    ;; Disable current candidate preview
+    ;; (corfu-preselect 'prompt)      ;; Preselect the prompt
+    ;; (corfu-on-exact-match 'insert) ;; Configure handling of exact matches
+    :init
+    (global-corfu-mode)
+    (corfu-history-mode)
+    :config
+    (keymap-unset corfu-map "RET")
+    (keymap-unset corfu-map "<return>")
+    )  
 #+end_src
 
 Consult:
@@ -699,7 +877,7 @@ Base package:
       :config
 
       ;; Remember to check the doc string of each of those variables.
-      (setq denote-directory (expand-file-name "/Users/florian/Library/Mobile Documents/com~apple~CloudDocs/Denote"))
+      (setq denote-directory (expand-file-name zettelkasten-dir))
       (setq denote-save-buffers nil)
       (setq denote-known-keywords nil)
       (setq denote-infer-keywords t)
@@ -781,6 +959,110 @@ Combine with consult:
       (consult-notes-denote-mode))
     ;; search only for text files in denote dir
     (setq consult-notes-denote-files-function (lambda () (denote-directory-files nil t t))))
+#+end_src
+* Denote Expore
+#+begin_src emacs-lisp
+  (use-package denote-explore
+    :straight t
+    :custom
+    ;; Where to store network data and in which format
+    (denote-explore-network-directory "<your preferred folder>")
+    (denote-explore-network-filename "denote-network")
+    (denote-explore-network-keywords-ignore "<keywords list>")
+    (denote-explore-network-regex-ignore "<regex>")
+    (denote-explore-network-format 'd3.js)
+    (denote-explore-network-d3-colours 'SchemeObservable10)
+    (denote-explore-network-d3-js "https://d3js.org/d3.v7.min.js")
+    (denote-explore-network-d3-template "<file path>")
+    (denote-explore-network-graphviz-header "<header strings>")
+    (denote-explore-network-graphviz-filetype 'svg)
+    :bind
+    (;; Statistics
+     ("C-c e s n" . denote-explore-count-notes)
+     ("C-c e s k" . denote-explore-count-keywords)
+     ("C-c e s e" . denote-explore-barchart-filetypes)
+     ("C-c e s w" . denote-explore-barchart-keywords)
+     ("C-c e s t" . denote-explore-barchart-timeline)
+     ;; Random walks
+     ("C-c e w n" . denote-explore-random-note)
+     ("C-c e w r" . denote-explore-random-regex)
+     ("C-c e w l" . denote-explore-random-link)
+     ("C-c e w k" . denote-explore-random-keyword)
+     ;; Denote Janitor
+     ("C-c e j d" . denote-explore-duplicate-notes)
+     ("C-c e j D" . denote-explore-duplicate-notes-dired)
+     ("C-c e j l" . denote-explore-missing-links)
+     ("C-c e j z" . denote-explore-zero-keywords)
+     ("C-c e j s" . denote-explore-single-keywords)
+     ("C-c e j r" . denote-explore-rename-keywords)
+     ("C-c e j y" . denote-explore-sync-metadata)
+     ("C-c e j i" . denote-explore-isolated-files)
+     ;; Visualise denote
+     ("C-c e n" . denote-explore-network)
+     ("C-c e r" . denote-explore-network-regenerate)
+     ("C-c e d" . denote-explore-barchart-degree)
+     ("C-c e b" . denote-explore-barchart-backlinks)))
+#+end_src
+* Large Language Models
+#+begin_src emacs-lisp
+  (use-package gptel
+    :straight t)
+#+end_src
+* LaTeX
+Use old config?
+#+begin_src emacs-lisp
+  (use-package auctex
+    :straight t
+    :demand t
+    :init
+    (load "auctex.el" nil t t)
+    :config
+    (setq TeX-auto-save t)
+    (setq TeX-auto-local ".build")
+    (setq TeX-parse-self t)
+    (setq-default TeX-master nil)
+
+    ;; (ryo-modal-major-mode-keys
+    ;;  '(LaTeX-mode latex-mode)
+    ;;  ;; ("c c" TeX-command-default)
+    ;;  ("c v" TeX-view)
+    ;;  )
+
+    (setq TeX-view-program-selection
+          '((output-pdf "Skim")
+            (output-dvi "xdvi")
+            (output-html "xdg-open")))
+
+    (defun latex-compilation-commands-hook ()
+      (add-to-list 'TeX-command-list
+  		 '("LaTeXmk (rcfile)" "latexmk %s" TeX-run-TeX nil t
+                     :help "Run latexmk using .latexmkrc on file"))
+      (add-to-list 'TeX-command-list
+  		 '("LaTeXmk (PDF)" "latexmk -pdf -pdflatex='pdflatex -synctex=1' -norc %s" TeX-run-TeX nil t
+                     :help "Run latexmk with pdflatex on file."))
+      (add-to-list 'TeX-command-list
+  		 '("LaTeXmk (Clean)" "latexmk -C %s" TeX-run-TeX nil t
+                     :help "Run latexmk Clean."))
+      (add-to-list 'TeX-command-list
+  		 '("LaTeXmk (Lua)" "latexmk -pdf -pdflatex='lualatex -synctex=1' -norc %s" TeX-run-TeX nil t
+                     :help "Run latexmk with lualatex on file."))
+      (add-to-list 'TeX-command-list
+  		 '("Make" "make %s.pdf" TeX-run-TeX nil t
+                     :help "Run Makefile in master directory."))
+      (add-to-list 'TeX-command-list
+  		 '("Make (all)" "make all" TeX-run-TeX nil t
+                     :help "Run Makefile in master directory."))
+      (add-to-list 'TeX-command-list
+  		 '("Make Clean" "make clean" TeX-run-TeX nil t
+                     :help "Run Makefile in master directory.")))
+
+
+    (add-hook 'LaTeX-mode-hook 'latex-compilation-commands-hook)
+
+
+    
+
+    )
 #+end_src
 * R
 ** Helper function: Restart R
@@ -886,12 +1168,12 @@ Local keymap for ess-r-mode:
 #+name: local-map-ess-r
 #+begin_src emacs-lisp :noweb no
   (with-eval-after-load 'ess-r-mode
-    (ryo-modal-major-mode-keys
-     'ess-r-mode
-     ("c b" ess-eval-buffer)
-     ("c x" fst/ess-restart-r)
-     ("c l" ess-eval-region-or-line-and-step)
-     )
+  (ryo-modal-major-mode-keys
+   'ess-r-mode
+   ("c b" ess-eval-buffer)
+   ("c x" fst/ess-restart-r)
+   ("c l" ess-eval-region-or-line-and-step)
+   )
     )
 #+end_src
 ** ESS Package Setup
@@ -950,9 +1232,50 @@ Experiment with tree sitter:
     :mode "\\.jl$"
     :config
     (add-hook 'julia-ts-mode-hook 'eglot-ensure)
-    )
-#+end_src
 
+    (defvar cst/julia-repl-window nil)
+    (defun cst/julia-repl-start ()
+    "Splits window and opens julia repl"
+    (interactive)
+    (let ((script-buffer (current-buffer))
+  	(inferior-buffer (julia-repl-inferior-buffer))
+          (inferior-window (split-window (selected-window) (* (display-pixel-height) 0.70) 'below t)))
+      (with-current-buffer inferior-buffer (setq julia-repl--script-buffer script-buffer))
+      (with-selected-window inferior-window (switch-to-buffer inferior-buffer))
+      (set 'cst/julia-repl-window inferior-window)
+      )
+    )
+
+  (defun cst/julia-repl-restart ()
+    "Restarts julia repl"
+    (interactive)
+    (let ((script-buffer (current-buffer))
+          (inferior-new nil)
+  	(inferior-buffer (julia-repl-inferior-buffer)))
+
+      (with-selected-window cst/julia-repl-window
+        (kill-buffer inferior-buffer)
+        (setq inferior-new (julia-repl-inferior-buffer))
+        (switch-to-buffer inferior-new)
+        )
+      )
+    )
+
+    (defun cst/julia-repl-send-main ()
+    "..."
+    (interactive)
+    (julia-repl--send-string (concat "include(" "\"" (concat (expand-file-name (project-root (project-current t))) "src/main.jl") "\")")))
+
+    ;; Keymap:
+      (ryo-modal-major-mode-keys
+       'julia-ts-mode
+       ("c b" julia-repl-send-buffer)
+       ("c x" cst/julia-repl-restart)
+       ("c m" cst/julia-repl-send-main)
+       ("c l" julia-repl-send-region-or-line)
+       )
+      )
+#+end_src
 
 REPL:
 #+begin_src emacs-lisp
@@ -965,6 +1288,16 @@ REPL:
     (julia-repl-set-terminal-backend 'vterm)
     (add-hook 'julia-mode-hook 'eglot-jl-init)
     ;;(define-key julia-repl-mode-map (kbd "C-;") #'ryo-modal-mode)
+    )
+#+end_src
+* Common Lisp
+#+begin_src emacs-lisp
+  (use-package sly
+    :straight t
+    :init
+    (require 'sly-autoloads)
+    :config
+    (setq inferior-lisp-program "/opt/homebrew/bin/sbcl")
     )
 #+end_src
 * Ledger
@@ -986,4 +1319,63 @@ Personal bookkeeping:
     (setq ledger-post-amount-alignment-column  52)
     (setq ledger-post-auto-adjust-amounts t))
 #+end_src
+* Misc functions
 
+Consult only files:
+#+begin_src emacs-lisp
+(defun fst/consult-find-only-files ()
+  "Like `consult-find', but list only files (no directories)."
+  (interactive)
+  (require 'consult)
+  (let ((consult-find-args
+         (if (listp consult-find-args)
+             ;; In case you're on a variant where args are a list.
+             '("find" "." "-type" "f" "-not" "(" "-wholename" "*/.*" "-prune" ")")
+           ;; Default consult uses a string.
+           "find . -type f -not ( -wholename */.* -prune )")))
+    (call-interactively #'consult-find)))
+#+end_src
+
+
+#+begin_src emacs-lisp
+(defun xah-copy-file-path (&optional DirPathOnlyQ)
+  "Copy current buffer file path or dired path.
+Result is full path.
+If `universal-argument' is called first, copy only the dir path.
+
+If in dired, copy the current or marked files.
+
+If a buffer is not file and not dired, copy value of `default-directory'.
+
+URL `http://xahlee.info/emacs/emacs/emacs_copy_file_path.html'
+Created: 2018-06-18
+Version: 2021-09-30"
+  (interactive "P")
+  (let ((xfpath
+         (if (eq major-mode 'dired-mode)
+             (progn
+               (let ((xresult (mapconcat #'identity
+                                         (dired-get-marked-files) "\n")))
+                 (if (equal (length xresult) 0)
+                     (progn default-directory )
+                   (progn xresult))))
+           (if buffer-file-name
+               buffer-file-name
+             (expand-file-name default-directory)))))
+    (kill-new
+     (if DirPathOnlyQ
+         (progn
+           (message "Directory copied: %s" (file-name-directory xfpath))
+           (file-name-directory xfpath))
+       (progn
+         (message "File path copied: %s" xfpath)
+         xfpath )))))
+#+end_src
+* Testing
+Reading stuff:
+#+begin_src emacs-lisp
+  (use-package reader
+    :straight '(reader :type git :host codeberg :repo "divyaranjan/emacs-reader"
+   		     :files ("*.el" "render-core.dylib")
+   		     :pre-build ("make" "all")))
+#+end_src
